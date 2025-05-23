@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-dotenv
+requests
+boto3
+httpx
+openai
+mangum
+jwt
+pytz
+python-jose
+bs4
