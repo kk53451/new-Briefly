@@ -23,3 +23,4 @@ CATEGORY_EN_LIST = [v["api_name"] for v in CATEGORY_MAP.values()]
 # ✅ 영문 카테고리명 → 한글 카테고리명 역매핑 딕셔너리
 # 예: {"politics": "정치", "economy": "경제", ...}
 REVERSE_CATEGORY_MAP = {v["api_name"]: k for k, v in CATEGORY_MAP.items()}
+ 

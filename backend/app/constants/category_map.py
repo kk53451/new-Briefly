@@ -10,8 +10,8 @@ CATEGORY_MAP = {
     "생활/문화": {"api_name": "culture", "section": "domestic"},
     "IT/과학": {"api_name": "tech", "section": "domestic"},
     "연예": {"api_name": "entertainment", "section": "domestic"},
-    "세계": {"api_name": "world", "section": "domestic"},
-    # "스포츠": {"api_name": "sports", "section": "international"},  # ❌ 현재 미사용 (기획 제외)
+    # "세계": {"api_name": "world", "section": "international"},  ← 제거됨
+    # "스포츠": {"api_name": "sports", "section": "international"},  ← 제거됨
 }
 
 # ✅ 한글 카테고리명 목록 (예: ["정치", "경제", ...])
@@ -23,3 +23,4 @@ CATEGORY_EN_LIST = [v["api_name"] for v in CATEGORY_MAP.values()]
 # ✅ 영문 카테고리명 → 한글 카테고리명 역매핑 딕셔너리
 # 예: {"politics": "정치", "economy": "경제", ...}
 REVERSE_CATEGORY_MAP = {v["api_name"]: k for k, v in CATEGORY_MAP.items()}
+ 

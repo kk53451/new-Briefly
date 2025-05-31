@@ -163,27 +163,29 @@ def get_frequency_by_category_and_date(category: str, date: str):
 # ============================================
 
 def save_user(user: dict):
-    """
-    사용자 정보 저장 (신규 또는 업데이트)
-    """
     if "created_at" not in user:
         user["created_at"] = datetime.utcnow().isoformat()
     if "profile_image" not in user:
         user["profile_image"] = ""
+
     try:
-        users_table.put_item(Item=user)
+        users_table.put_item(Item=deep_convert(user))
     except ClientError as e:
         raise Exception(f"[Users 저장 실패] {e.response['Error']['Message']}")
 
 def get_user(user_id: str):
-    """
-    user_id 기준 사용자 정보 조회
-    """
     try:
         response = users_table.get_item(Key={"user_id": user_id})
-        item = response.get("Item", {})
+        item = response.get("Item")
+        if not item:
+            return None
+
+        item.setdefault("nickname", "")
         item.setdefault("profile_image", "")
         item.setdefault("created_at", "")
+        item.setdefault("interests", [])
+        item.setdefault("onboarding_completed", False)
+
         return item
     except ClientError as e:
         raise Exception(f"[Users 조회 실패] {e.response['Error']['Message']}")
