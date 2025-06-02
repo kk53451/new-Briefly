@@ -7,7 +7,7 @@ router = APIRouter(prefix="/api", tags=["Categories"])
 
 # ✅ 프론트에 제공할 전체 카테고리 고정 리스트
 ALL_CATEGORIES = [
-    "정치", "경제", "사회", "생활/문화", "IT/과학", "세계", "스포츠", "연예"
+    "정치", "경제", "사회", "생활/문화", "IT/과학", "연예"
 ]
 
 # ✅ [GET] /api/categories

@@ -15,6 +15,7 @@ from app.services.tts_service import text_to_speech
 from app.utils.s3 import upload_audio_to_s3_presigned
 from app.constants.category_map import CATEGORY_MAP
 from app.services.deepsearch_service import extract_content_with_bs4
+from app.services.openai_service import summarize_articles, cluster_similar_texts, summarize_group
 
 # 로그 설정
 logger = logging.getLogger()
@@ -88,8 +89,19 @@ def generate_all_frequencies():
                 logger.warning(f"⚠️ 유효 본문 부족 → 스킵: {category_en}")
                 continue
 
+             # ⭐️ [신규] 중복/유사 기사 군집화
+            groups = cluster_similar_texts(full_contents, threshold=0.80)
+            group_summaries = []
+            for group in groups:
+                if len(group) == 1:
+                    group_summaries.append(group[0])
+                else:
+                    # 여러 본문 묶음 → 대표 요약문 생성
+                    summary = summarize_group(group, category_en)
+                    group_summaries.append(summary)
+
             # GPT로 종합 스크립트 요약 생성
-            script = summarize_articles(full_contents, category_en)
+            script = summarize_articles(group_summaries, category_en)
             if not script or len(script) < 500:
                 logger.warning(f"⚠️ 요약 길이 부족 → 스킵: {category_en}")
                 continue

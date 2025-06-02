@@ -133,6 +133,22 @@ def update_news_card_content_by_url(content_url: str, content: str):
         update_news_card_content(news_id, content)
     except ClientError as e:
         raise Exception(f"[URL로 본문 업데이트 실패] {e.response['Error']['Message']}")
+    
+def get_news_card_by_content_url(content_url: str):
+    """
+    content_url 기준 뉴스 중복 여부 조회 (DB에서 스캔)
+    """
+    try:
+        response = news_table.scan(
+            FilterExpression="content_url = :url",
+            ExpressionAttributeValues={":url": content_url}
+        )
+        items = response.get("Items", [])
+        if items:
+            return items[0]  # 이미 존재
+        return None
+    except ClientError as e:
+        raise Exception(f"[content_url 중복 체크 실패] {e.response['Error']['Message']}")
 
 # ============================================
 # 2. Frequencies 관련 함수
@@ -163,27 +179,29 @@ def get_frequency_by_category_and_date(category: str, date: str):
 # ============================================
 
 def save_user(user: dict):
-    """
-    사용자 정보 저장 (신규 또는 업데이트)
-    """
     if "created_at" not in user:
         user["created_at"] = datetime.utcnow().isoformat()
     if "profile_image" not in user:
         user["profile_image"] = ""
+
     try:
-        users_table.put_item(Item=user)
+        users_table.put_item(Item=deep_convert(user))
     except ClientError as e:
         raise Exception(f"[Users 저장 실패] {e.response['Error']['Message']}")
 
 def get_user(user_id: str):
-    """
-    user_id 기준 사용자 정보 조회
-    """
     try:
         response = users_table.get_item(Key={"user_id": user_id})
-        item = response.get("Item", {})
+        item = response.get("Item")
+        if not item:
+            return None
+
+        item.setdefault("nickname", "")
         item.setdefault("profile_image", "")
         item.setdefault("created_at", "")
+        item.setdefault("interests", [])
+        item.setdefault("onboarding_completed", False)
+
         return item
     except ClientError as e:
         raise Exception(f"[Users 조회 실패] {e.response['Error']['Message']}")

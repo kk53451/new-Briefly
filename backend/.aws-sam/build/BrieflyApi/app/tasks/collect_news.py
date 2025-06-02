@@ -7,6 +7,7 @@ import pytz
 from app.services.deepsearch_service import fetch_valid_articles_by_category
 from app.utils.dynamo import save_news_card, get_news_card_by_id
 from app.constants.category_map import CATEGORY_MAP
+from app.utils.dynamo import get_news_card_by_content_url
 
 # 로그 설정
 logger = logging.getLogger()
@@ -41,7 +42,7 @@ def collect_today_news():
                 category=category_en,
                 start_time=start_time,
                 end_time=end_time,
-                size=60,                # 오버페치 후 필터링
+                size=80,                # 오버페치 후 필터링
                 sort="popular",
                 section=section,
                 min_content_length=300,
@@ -61,9 +62,13 @@ def collect_today_news():
                 logger.warning(f"[{category_ko}] ❌ ID 누락 → 스킵")
                 continue
 
+            #여기 수정
             # 중복 확인
             if get_news_card_by_id(news_id):
-                logger.info(f"🚫 중복 뉴스 스킵: {news_id}")
+                logger.info(f"🚫 [ID중복] 뉴스 스킵: {news_id}")
+                continue
+            if get_news_card_by_content_url(article.get("content_url")):
+                logger.info(f"🚫 [URL중복] 뉴스 스킵: {article.get('content_url')}")
                 continue
 
             content = article.get("content", "")
@@ -100,3 +105,4 @@ def collect_today_news():
                 logger.error(f"[저장 실패] {category_ko} #{rank}: {e}")
 
         logger.info(f"📊 {category_ko} 최종 저장 수: {saved_count}")
+

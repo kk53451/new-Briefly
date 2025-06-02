@@ -133,6 +133,22 @@ def update_news_card_content_by_url(content_url: str, content: str):
         update_news_card_content(news_id, content)
     except ClientError as e:
         raise Exception(f"[URL로 본문 업데이트 실패] {e.response['Error']['Message']}")
+    
+def get_news_card_by_content_url(content_url: str):
+    """
+    content_url 기준 뉴스 중복 여부 조회 (DB에서 스캔)
+    """
+    try:
+        response = news_table.scan(
+            FilterExpression="content_url = :url",
+            ExpressionAttributeValues={":url": content_url}
+        )
+        items = response.get("Items", [])
+        if items:
+            return items[0]  # 이미 존재
+        return None
+    except ClientError as e:
+        raise Exception(f"[content_url 중복 체크 실패] {e.response['Error']['Message']}")
 
 # ============================================
 # 2. Frequencies 관련 함수
