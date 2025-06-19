@@ -24,14 +24,6 @@ samconfig.toml
 # Logs
 *.log
 logs/
-
-# Media files
-outputaudio/
-*.mp3
-*.wav
-*.mp4
-*.avi
-
 # IDE
 .vscode/
 .idea/
@@ -41,10 +33,6 @@ outputaudio/
 # OS
 .DS_Store
 Thumbs.db
-
-# Personal documents
-*.docx
-프로젝트_정리_문서.md
 
 # Temporary files
 tmp/
