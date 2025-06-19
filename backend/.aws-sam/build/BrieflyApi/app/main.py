@@ -18,8 +18,14 @@ from app.routes import (
     user
 )
 
+# ✅ 카테고리 맵 임포트
+from app.constants.category_map import CATEGORY_KO_LIST
+
 # ✅ FastAPI 인스턴스 생성
-app = FastAPI(title="Briefly API")
+app = FastAPI(
+    title="Briefly API",
+    redirect_slashes=False  # 🔧 trailing slash 자동 리다이렉트 방지
+)
 
 # ✅ 라우터 등록
 app.include_router(auth.router)
@@ -44,3 +50,16 @@ handler = Mangum(app)
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Briefly API"}
+
+# ✅ 온보딩 페이지 엔드포인트 (프론트엔드 요청 대응)
+@app.get("/onboarding")
+def get_onboarding_info():
+    """
+    온보딩 페이지 정보 제공 (인증 불필요)
+    
+    - 프론트엔드에서 /onboarding 경로 요청 시 응답
+    """
+    return {
+        "message": "온보딩 페이지입니다",
+        "available_categories": CATEGORY_KO_LIST
+    }

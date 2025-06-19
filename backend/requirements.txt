@@ -6,9 +6,9 @@ boto3
 httpx
 openai
 mangum
-jwt
+pyJWT
 pytz
 python-jose
 bs4
-trafilatura
 numpy
+trafilatura

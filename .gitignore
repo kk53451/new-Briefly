@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+venv/
+env/
+ENV/
+
+# Environment Variables
+.env
+.env.local
+.env.development
+.env.production
+
+# AWS SAM
+.aws-sam/
+samconfig.toml
+
+# Logs
+*.log
+logs/
+
+# Media files
+outputaudio/
+*.mp3
+*.wav
+*.mp4
+*.avi
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Personal documents
+*.docx
+프로젝트_정리_문서.md
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp 
