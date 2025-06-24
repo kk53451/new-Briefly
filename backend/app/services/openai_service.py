@@ -2,15 +2,15 @@
 
 import os
 import openai
-import numpy as np   # 임베딩 계산용
+import numpy as np 
 import logging
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
-MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # 환경변수로 모델 설정 가능
+MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini") 
 
 logger = logging.getLogger(__name__)
 
-# Few-shot 예시들
+# Few-shot例（カテゴリごとの入力・出力例）
 FEW_SHOT_EXAMPLES = {
     "경제": {
         "input": [
@@ -62,11 +62,9 @@ FEW_SHOT_EXAMPLES = {
     }
 }
 
-
-
 def get_embedding(text: str) -> list:
     """
-    텍스트의 임베딩 벡터를 생성합니다.
+    テキストの埋め込みベクトルを生成します。
     """
     try:
         res = openai.embeddings.create(
@@ -76,54 +74,58 @@ def get_embedding(text: str) -> list:
         return res.data[0].embedding
     except openai.RateLimitError as e:
         logger.warning(f" OpenAI Rate Limit 초과: {e}")
+        # OpenAIのレート制限を超過
         return []
     except openai.APIError as e:
         logger.warning(f" OpenAI API 오류: {e}")
+        # OpenAI APIエラー
         return []
     except openai.AuthenticationError as e:
         logger.warning(f" OpenAI 인증 오류: {e}")
+        # OpenAI認証エラー
         return []
     except Exception as e:
         logger.warning(f" 임베딩 생성 예상치 못한 오류: {e}")
+        # 埋め込み生成中の予期しないエラー
         return []
+
 
 def cosine_similarity(vec1, vec2):
     """
-    두 벡터 간의 코사인 유사도를 계산합니다.
+    2つのベクトル間のコサイン類似度を計算します。
     """
     try:
         if not vec1 or not vec2:
             return 0.0
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
     except (ValueError, ZeroDivisionError, np.linalg.LinAlgError) as e:
-        logger.warning(f" 코사인 유사도 계산 오류: {e}")
+        logger.warning(f" コサイン類似度の計算エラー: {e}")
+        # コサイン類似度の計算エラー
         return 0.0
     except Exception as e:
-        logger.warning(f" 코사인 유사도 예상치 못한 오류: {e}")
+        logger.warning(f" コサイン類似度の予期しないエラー: {e}")
+        # コサイン類似度の予期しないエラー
         return 0.0
 
 def cluster_similar_texts(texts, threshold=0.75):
     """
-    유사한 텍스트들을 클러스터링하여 중복 내용을 그룹화합니다.
+    類似するテキストをクラスタリングし、重複する内容をグループ化します。
     """
     if len(texts) <= 1:
         return [texts]
-    
     try:
-        logger.info(f"{len(texts)}개 텍스트 클러스터링 시작...")
+        logger.info(f"{len(texts)}個のテキスト クラスタリングを開始...")
+        # テキストのクラスタリングを開始
         embeddings = []
-        
-        # 임베딩 생성 (실패한 것들은 제외)
         valid_texts = []
+        # 埋め込み生成（失敗したものは除外）
         for i, text in enumerate(texts):
-            emb = get_embedding(text[:1000])  # 토큰 제한: 1500자에서 1000자로 단축
+            emb = get_embedding(text[:1000])  # トークン制限：最大1000文字
             if emb:
                 embeddings.append(emb)
                 valid_texts.append(text)
-        
         if len(embeddings) <= 1:
             return [valid_texts]
-            
         clusters = []
         for idx, emb in enumerate(embeddings):
             added = False
@@ -134,273 +136,283 @@ def cluster_similar_texts(texts, threshold=0.75):
                     break
             if not added:
                 clusters.append({'embedding': emb, 'indices': [idx]})
-        
-        # 클러스터별로 텍스트 그룹화
+        # 各クラスタごとにテキストをグループ化
         grouped = [[valid_texts[i] for i in c['indices']] for c in clusters]
-        logger.info(f"{len(texts)}개 텍스트를 {len(grouped)}개 클러스터로 그룹화 완료")
+        logger.info(f"{len(texts)}個のテキストを {len(grouped)}個のクラスタにグループ化しました")
+        # クラスタリングの完了ログ
         return grouped
-        
     except MemoryError as e:
-        logger.warning(f" 메모리 부족으로 클러스터링 실패: {e}")
+        logger.warning(f" メモリ不足によるクラスタリング失敗: {e}")
+        # メモリ不足によるクラスタリング失敗
         return [texts]
     except (ValueError, TypeError) as e:
-        logger.warning(f" 데이터 형식 오류로 클러스터링 실패: {e}")
+        logger.warning(f" データ型のエラーによる失敗: {e}")
+        # データ型のエラーによる失敗
         return [texts]
     except Exception as e:
-        logger.warning(f" 클러스터링 예상치 못한 오류, 원본 반환: {e}")
+        logger.warning(f" クラスタリング中の予期しないエラー, 元のリストを返す: {e}")
+        # 予期しないエラーが発生した場合は元のリストを返す
         return [texts]
 
 def summarize_group(texts: list, category: str) -> str:
     """
-    클러스터된 유사 기사들을 하나의 요약으로 통합합니다.
-    Few-shot learning과 품질 검증을 포함합니다.
+    クラスタリングされた類似記事を1つの要約に統合します。
+    Few-shot学習と品質検証を含みます。
     """
     if len(texts) == 1:
         return texts[0]
-    
-    # 토큰 최적화를 위해 각 텍스트 길이 제한
-    limited_texts = [text[:800] for text in texts]  # 각 기사 800자로 제한
-    
-    # 카테고리별 특화 요약 스타일
+    # 各記事を800文字に制限
+    limited_texts = [text[:800] for text in texts]
+    # カテゴリごとの特化スタイル
     category_context = {
-        "정치": "정책의 배경과 영향, 다양한 관점을 균형있게",
-        "경제": "경제 지표의 의미와 일반인에게 미치는 영향을 중심으로",
-        "사회": "사회적 이슈의 원인과 파급효과, 시민들의 반응을",
-        "문화": "문화적 의미와 트렌드, 대중의 관심사를",
-        "IT": "기술의 혁신성과 실생활 적용 가능성을",
-        "스포츠": "경기 결과와 선수들의 스토리, 팬들의 반응을"
-    }.get(category, "핵심 사실과 그 의미를")
-    
-    # Few-shot 예시 추가
+        "정치": "정책の背景と影響、さまざまな視点をバランスよく",
+        "경제": "経済指標の意味と一般人への影響に注目",
+        "사회": "社会問題の原因と影響、市民の反応を含めて",
+        "문화": "文化的な意味やトレンド、大衆の関心を含めて",
+        "IT": "技術の革新性と実生活への応用可能性",
+        "스포츠": "試合結果と選手のストーリー、ファンの反応"
+    }.get(category, "核心の事実とその意味を")
+    # Few-shotの例を追加
     few_shot_example = ""
     if category in FEW_SHOT_EXAMPLES:
         example = FEW_SHOT_EXAMPLES[category]
         few_shot_example = (
-            f"**좋은 통합 요약 예시 ({category} 분야):**\n"
+            f"**よい統合要約の例 ({category}分野):**\n"
             + "\n".join(example["input"]) + "\n\n"
-            f"→ **통합 요약**: {example['output']}\n\n"
-            "위 예시처럼 중복을 제거하고 핵심 정보를 논리적으로 연결하여 작성해주세요.\n\n"
+            f"→ **統合要約**: {example['output']}\n\n"
+            "上記の例のように、重複を除去し、重要な情報を論理的につなげて作成してください。\n\n"
         )
-        
     prompt = (
-        f"당신은 뉴스 요약 전문가입니다. '{category}' 분야의 유사한 뉴스 기사들을 "
-        f"하나의 완성도 높은 요약으로 통합해주세요.\n\n"
-        
+        f"あなたはニュース要約の専門家です。「{category}」分野の類似記事を、"
+        f"完成度の高い1つの要約に統合してください。\n\n"
         f"{few_shot_example}"
-        
-        f"**통합 요약 작성 가이드:**\n"
-        f"1. **핵심 사실 추출**: 가장 중요한 사실들을 우선순위대로 정리\n"
-        f"2. **중복 제거**: 반복되는 내용은 한 번만 언급하되 중요도에 따라 강조\n"
-        f"3. **맥락 제공**: {category_context} 포함\n"
-        f"4. **논리적 구조**: 시간순/중요도순으로 자연스럽게 연결\n"
-        f"5. **구체적 정보**: 날짜, 수치, 인명 등 구체적 정보 보존\n"
-        f"6. **균형잡힌 시각**: 여러 관점이 있다면 공정하게 제시\n\n"
-        
-        f"**품질 기준:**\n"
-        f"- 독립적으로 읽어도 이해되는 완성된 요약\n"
-        f"- 중요한 정보 누락 없이 간결하게\n"
-        f"- 자연스러운 한국어 문체\n"
-        f"- 500-700자 분량 (음성 변환 최적화)\n\n"
-        
-        f"**통합할 기사들:**\n"
-        + "\n\n".join([f"[기사 {i+1}]\n{text}" for i, text in enumerate(limited_texts)])
-        + "\n\n위 기사들을 바탕으로 통합 요약을 작성해주세요:"
+        f"**統合要約作成ガイド:**\n"
+        f"1. **重要事実の抽出**: 最も重要な事実を優先順位で整理\n"
+        f"2. **重複排除**: 繰り返される内容は一度だけ言及し、重要性に応じて強調\n"
+        f"3. **文脈提供**: {category_context} を含める\n"
+        f"4. **論理的構成**: 時系列や重要度に基づいて自然につなぐ\n"
+        f"5. **具体的情報の保持**: 日付、数値、人名などの具体的情報を保持\n"
+        f"6. **バランスの取れた視点**: 複数の視点がある場合は公平に提示\n\n"
+        f"**品質基準:**\n"
+        f"- 独立して読んでも理解できる完成された要約\n"
+        f"- 重要な情報を漏らさず簡潔に\n"
+        f"- 自然な韓国語の文体\n"
+        f"- 500-700文字（音声変換に最適化)\n\n"
+        f"**統合する記事:**\n"
+        + "\n\n".join([f"[記事 {i+1}]\n{text}" for i, text in enumerate(limited_texts)])
+        + "\n\n上記の記事をもとに統合要約を作成してください:"
     )
-    
     max_attempts = 3
-    
     for attempt in range(max_attempts):
         try:
-            # Temperature를 점진적으로 조정 (첫 시도는 낮게, 실패시 높게)
-            temp = 0.3 + (attempt * 0.2)  # 0.3 -> 0.5 -> 0.7
-            
+            temp = 0.3 + (attempt * 0.2)
             response = openai.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=temp,
                 max_tokens=700
             )
-            
             summary = response.choices[0].message.content.strip()
-            logger.info(f"시도 {attempt + 1}: 온도={temp:.1f}, 요약 생성 완료 ({len(summary)}자)")
+            logger.info(f"試行 {attempt + 1}: 温度={temp:.1f}, 要約生成完了 ({len(summary)}文字)")
             return summary
-                
         except openai.RateLimitError as e:
-            logger.warning(f" OpenAI Rate Limit 초과 (그룹 요약, 시도 {attempt + 1}): {e}")
+            logger.warning(f" OpenAI Rate Limit 超過 (グループ要約, 試行 {attempt + 1}): {e}")
+            # OpenAIレート制限超過
             if attempt == max_attempts - 1:
                 return texts[0]
             continue
         except openai.APIError as e:
-            logger.warning(f" OpenAI API 오류 (그룹 요약, 시도 {attempt + 1}): {e}")
+            logger.warning(f" OpenAI API エラー (グループ要約, 試行 {attempt + 1}): {e}")
+            # OpenAI APIエラー
             if attempt == max_attempts - 1:
                 return texts[0]
             continue
         except openai.AuthenticationError as e:
-            logger.warning(f" OpenAI 인증 오류 (그룹 요약): {e}")
+            logger.warning(f" OpenAI 認証エラー (グループ要約): {e}")
+            # OpenAI認証エラー
             return texts[0]
         except Exception as e:
-            logger.warning(f" 그룹 요약 예상치 못한 오류 (시도 {attempt + 1}): {e}")
+            logger.warning(f" グループ要約中の予期しないエラー (試行 {attempt + 1}): {e}")
+            # 予期しないエラー
             if attempt == max_attempts - 1:
                 return texts[0]
             continue
-    
-    # 모든 시도 실패시 첫 번째 원본 텍스트 반환
-    logger.warning("모든 요약 시도 실패, 원본 텍스트 반환")
+    logger.warning("すべての要約試行に失敗したため、元のテキストを返します。")
+    # すべての要約試行に失敗したため、元のテキストを返します。
     return texts[0]
 
 def get_category_specific_style(category: str) -> str:
     """
-    카테고리별 특화된 진행 스타일과 톤 반환
+    カテゴリごとの特化した進行スタイルとトーンを返す
     """
     category_styles = {
         "정치": {
-            "tone": "신중하고 균형잡힌",
-            "style": "복잡한 정치 상황을 쉽게 풀어서 설명하고, 다양한 관점을 제시",
-            "examples": "'이 정책이 우리 생활에 어떤 영향을 줄지', '양쪽 입장을 정리해보면'"
+            "tone": "慎重でバランスの取れた",
+            "style": "複雑な政治状況を簡単に説明し、さまざまな視点を提示",
+            "examples": "'この政策が私たちの生活にどのような影響を与えるか', '両方の見解を整理してみましょう'"
         },
         "경제": {
-            "tone": "전문적이지만 친근한",
-            "style": "경제 용어를 일상 언어로 번역하고, 실생활 연관성 강조",
-            "examples": "'쉽게 말하면', '우리 지갑에는 어떤 의미일까요', '예를 들어'"
+            "tone": "専門的で親しみやすい",
+            "style": "経済用語を日常言語に翻訳し、実生活との関連性を強調",
+            "examples": "'簡単に言うと', '私たちの財布にはどのような意味があるでしょうか', '例を挙げて'"
         },
         "사회": {
-            "tone": "따뜻하고 공감적인",
-            "style": "사람들의 이야기에 집중하고, 감정적 공감대 형성",
-            "examples": "'정말 안타까운 일이네요', '많은 분들이 공감하실 텐데', '우리 모두의 관심이 필요한'"
+            "tone": "温かく共感する",
+            "style": "人々の話に集中し、感情的な共感を形成",
+            "examples": "'本当に悲しいことですね', '多くの人が共感すると思いますが', '私たち全員の関心が必要です'"
         },
         "문화": {
-            "tone": "밝고 흥미진진한",
-            "style": "재미있고 생동감 있게, 문화적 의미와 트렌드 설명",
-            "examples": "'정말 흥미롭네요', '요즘 핫한', '문화적으로 보면'"
+            "tone": "明るく楽しく",
+            "style": "面白く生き生きして、文化的な意味とトレンドを説明",
+            "examples": "'本当に面白いですね', '最近ホットな', '文化的に見て'"
         },
         "IT": {
-            "tone": "호기심 가득한",
-            "style": "기술을 쉽게 설명하고, 미래 전망과 일상 연관성 강조",
-            "examples": "'기술적으로는', '미래에는 어떻게 될까요', '우리 생활이 어떻게 바뀔지'"
+            "tone": "好奇心が満ちた",
+            "style": "技術を簡単に説明し、将来の展望と日常との関連性を強調",
+            "examples": "'技術的には', '将来はどうなるでしょうか', '私たちの生活がどうなるか'"
         },
         "스포츠": {
-            "tone": "열정적이고 역동적인",
-            "style": "현장감 있게 전달하고, 선수와 팀의 스토리 강조",
-            "examples": "'정말 대단한', '감동적인 순간이었는데', '팬들은 열광했을 것 같아요'"
+            "tone": "熱心で生き生きした",
+            "style": "現場感を持って伝え、選手とチームのストーリーを強調",
+            "examples": "'本当に素晴らしい', '感動した瞬間でしたが', 'ファンはそれほど熱心でしたように見えます'"
         }
     }
-    
+
     if category in category_styles:
         style_info = category_styles[category]
         return (
-            f"**{category} 분야 특화 스타일:**\n"
-            f"- 톤: {style_info['tone']} 느낌으로\n"
-            f"- 접근법: {style_info['style']}\n"
-            f"- 자주 사용할 표현: {style_info['examples']}\n\n"
+            f"**{category}分野の特化スタイル:**\n"
+            f"- トーン: {style_info['tone']} の雰囲気で\n"
+            f"- アプローチ: {style_info['style']}\n"
+            f"- よく使う表現: {style_info['examples']}\n\n"
         )
     else:
-        return "**일반적인 뉴스 브리핑 스타일:**\n- 톤: 친근하고 신뢰감 있는\n- 접근법: 균형잡힌 시각으로 정보 전달\n\n"
+        return "**一般的なニュースブリーフィングスタイル:**\n- トーン: 親しみやすく信頼感のある\n- アプローチ: バランスの取れた視点で情報を伝える\n\n"
+
 
 def summarize_articles(texts: list[str], category: str) -> str:
     """
-    GPT-4o-mini를 사용하여 여러 개의 뉴스 요약을 바탕으로
-    하나의 흐름을 가진 팟캐스트 대본을 생성합니다.
+    GPT-4o-miniを使用して複数のニュース要約をもとに、
+    一貫した流れのあるポッドキャスト原稿を生成します。
     """
-    
-    # 2차 클러스터링: GPT 요약문 기반 의미적 중복 제거
+    # 2次クラスタリング: GPT要約文を元に意味的な重複を除去
     try:
-        if len(texts) > 5:  # 5개 이상일 때만 클러스터링 적용
-            logger.info(f"2차 클러스터링 시작: {len(texts)}개 요약문")
+        if len(texts) > 5:  # 5個以上のときのみクラスタリングを実行
+            # 5件以上のときのみクラスタリングを実行
+            logger.info(f"2次クラスタリングを開始: {len(texts)}個の要約文")
+            # 2次クラスタリング開始：{len(texts)}件の要約文
             clustered_groups = cluster_similar_texts(texts, threshold=0.75)
-            
-            # 각 클러스터를 하나의 요약으로 통합
+
+            # 各クラスタを1つの要約に統合
+            # 各クラスタを1つの要約に統合
             consolidated_texts = []
             for group_idx, group in enumerate(clustered_groups):
                 if len(group) > 1:
-                    # 여러 유사 요약문을 하나로 통합
+                    # 複数の類似要約を一つに統合
+                    # 複数の類似要約を一つに統合
                     try:
                         summary = summarize_group(group, category)
                         consolidated_texts.append(summary)
-                        logger.info(f"2차 그룹 #{group_idx+1}: {len(group)}개 요약을 통합 ({len(summary)}자)")
+                        logger.info(f"2次グループ #{group_idx+1}: {len(group)}個の要約を統合 ({len(summary)}文字)")
+                        # 第2グループ #{group_idx+1}：{len(group)}件の要約を統合（{len(summary)}文字）
                     except Exception as e:
-                        logger.warning(f" 2차 그룹 #{group_idx+1} 요약 실패, 첫 번째 사용: {e}")
-                        consolidated_texts.append(group[0][:1000])  # 길이 제한
+                        logger.warning(f" 2次グループ #{group_idx+1} 要約失敗、最初の要約を使用")
+                        # 第2グループ #{group_idx+1} の要約失敗、最初の要約を使用
+                        consolidated_texts.append(group[0][:1000])  # 長さ制限
+                        # 長さ制限
                 else:
-                    # 단일 요약은 그대로 사용 (길이 제한)
-                    consolidated_texts.append(group[0][:1000])  # 단일 기사도 1000자로 제한
-                    logger.info(f"2차 그룹 #{group_idx+1}: 단일 요약 ({len(group[0][:1000])}자)")
-            
-            final_texts = consolidated_texts
-            logger.info(f"2차 클러스터링 완료: {len(texts)}개를 {len(final_texts)}개 그룹으로 축소")
-        else:
-            # 클러스터링 안할 때도 길이 제한
-            final_texts = [text[:1000] for text in texts]
-            logger.info(f"2차 클러스터링 생략, 원본 요약 수: {len(final_texts)}")
-            
-    except Exception as e:
-        logger.warning(f" 2차 클러스터링 과정 실패, 원본 사용: {e}")
-        final_texts = [text[:1000] for text in texts]  # 실패시에도 길이 제한
+                    # 単一の要約はそのまま使用（長さ制限）
+                    # 単一の要約はそのまま使用（長さ制限）
+                    consolidated_texts.append(group[0][:1000])
+                    logger.info(f"2次グループ #{group_idx+1}: 単一要約 ({len(group[0][:1000])}文字)")
+                    # 第2グループ #{group_idx+1}：単一要約（{len(group[0][:1000])}文字）
 
-    # 최종 팟캐스트 대본 생성
+            final_texts = consolidated_texts
+            logger.info(f"2次クラスタリング完了: {len(texts)}個を{len(final_texts)}個に集約")
+            # 2次クラスタリング完了：{len(texts)}件を{len(final_texts)}件に集約
+        else:
+            # クラスタリングを行わない場合も長さを制限
+            # クラスタリングを行わない場合も長さを制限
+            final_texts = [text[:1000] for text in texts]
+            logger.info(f"2次クラスタリング省略、元の要約数：{len(final_texts)}")
+            # クラスタリング省略、元の要約数：{len(final_texts)}
+
+    except Exception as e:
+        logger.warning(f" 2次クラスタリング中に失敗、元の要約を使用: {e}")
+        # 2次クラスタリング中に失敗、元の要約を使用
+        final_texts = [text[:1000] for text in texts]  # 失敗時でも長さを制限
+        # 失敗時でも長さを制限
+
+    # 最終的なポッドキャスト原稿の生成
+    # 最終的なポッドキャスト原稿の生成
     category_style = get_category_specific_style(category)
     
     prompt = (
-        f"당신은 친근하고 신뢰감 있는 뉴스 브리핑 진행자입니다. "
-        f"마치 친구에게 오늘 있었던 중요한 소식을 전해주듯이 자연스럽고 따뜻한 톤으로 말해주세요.\n\n"
+        f"あなたは親しみやすく信頼できるニュース進行役です。 "
+        f"今日の重要なニュースを友人に伝えるように、自然で温かいトーンで話してください。\n\n"
         
-        f"**청취자:** '{category}' 분야에 관심 있는 일반인\n"
-        f"**목표:** 복잡한 뉴스를 쉽고 재미있게 전달\n"
-        f"**스타일:** 대화하듯 자연스럽고, 때로는 감탄사나 추임새 포함\n\n"
-        
+        f"**リスナー:** '{category}'分野に関心のある一般人\n"
+        f"**目標:** 複雑なニュースを分かりやすく、楽しく伝えること\n"
+        f"**スタイル:** 会話のように自然に、時には感嘆詞や相槌も含めて\n\n"
         f"{category_style}"
         
-        "**오늘의 뉴스 요약:**\n"
-        "{{뉴스_요약_리스트}}\n\n"
-        
-        "**대본 작성 가이드:**\n"
-        "1. **자연스러운 시작**: '안녕하세요, 오늘도 함께해주셔서 감사합니다' 같은 인사\n"
-        f"2. **카테고리 소개**: '오늘 {category} 분야에는 정말 흥미로운 소식들이 많네요'\n"
-        "3. **뉴스 전달**: 각 뉴스마다 '그런데 말이에요', '정말 놀라운 건', '이게 왜 중요하냐면' 같은 자연스러운 연결어 사용\n"
-        "4. **감정 표현**: '와, 이건 정말...', '음, 생각해보니...', '아, 그리고 또...' 같은 자연스러운 반응\n"
-        "5. **쉬운 설명**: 어려운 용어는 '쉽게 말하면', '즉', '다시 말해' 같은 표현으로 풀어서 설명\n"
-        "6. **개인적 의견**: '개인적으로는', '저는 이 부분이 인상적이었는데요' 같은 진행자의 관점 포함\n"
-        "7. **자연스러운 마무리**: '오늘 브리핑은 여기까지입니다. 내일도 좋은 소식으로 찾아뵐게요'\n\n"
-        
-        "**TTS 최적화 요소:**\n"
-        "- 문장을 너무 길게 하지 말고, 자연스러운 호흡 지점에서 끊어주세요\n"
-        "- 강조하고 싶은 부분은 '정말로', '바로', '특히' 같은 부사 활용\n"
-        "- 숫자나 전문용어 앞뒤로 잠깐의 여유 두기\n"
-        "- 감탄사 활용: '아', '오', '음', '그런데', '하지만' 등\n\n"
-        
-        "**길이 요구사항:**\n"
-        "- 최소 1800자 이상 (음성으로 약 3-4분 분량)\n"
-        "- 최대 2200자 이하\n"
-        "- 각 뉴스당 충분한 설명과 배경 정보 포함\n\n"
-        
-        "**중요:** 실제로 사람이 말하는 것처럼 자연스럽고 친근하게 작성해주세요. "
-        "딱딱한 뉴스 앵커가 아닌, 친구가 흥미로운 이야기를 들려주는 느낌으로!"
+        "**本日のニュース要約:**\n"
+        "{{ニュース要約リスト}}\n\n"
+        f"**原稿作成ガイド:**\n"
+        "1. **自然な始まり**: 'こんにちは、今日も一緒にいてくれてありがとうございます' のような挨拶\n"
+        f"2. **カテゴリ紹介**: '今日は{category}分野に本当に興味深いニュースが多いですね'\n"
+        f"3. **ニュース紹介**: 各ニュースに「ところで」「本当に驚いたのは」「なぜ重要かというと」など自然なつなぎ言葉を使用\n"
+        f"4. **感情表現**: 'わぁ、これは本当に...', 'うーん、考えてみると...', 'アッ、それともう一つ...' など自然な反応\n"
+        f"5. **分かりやすい説明**: 難しい用語は「簡単に言うと」「つまり」「言い換えれば」で補足\n"
+        f"6. **個人的な意見**: '個人的には', '私はこの部分が印象的でした' など進行役の視点も含める\n"
+        f"7. **自然な締めくくり**: '今日のブリーフィングはここまでです。また明日良いニュースでお会いしましょう'\n\n"
+
+        "**TTS最適化のポイント:**\n"
+        "- 文章を長くしすぎず、自然な息継ぎポイントで区切ってください\n"
+        "- 強調したい部分には「本当に」「まさに」「特に」などの副詞を使う\n"
+        "- 数字や専門用語の前後に少し間を置く\n"
+        "- 感嘆詞の活用：「あ」「お」「うーん」「ところで」「でも」など\n\n"
+
+        "**長さの要件:**\n"
+        "- 最小1800文字以上（音声で約3～4分相当）\n"
+        "- 最大2200文字以下\n"
+        "- 各ニュースごとに十分な説明と背景情報を含む\n\n"
+
+        "**重要:** 実際に人が話すように自然で親しみやすく書いてください。 "
+        "ニュースアナウンサーではなく、友達が面白い話をしてくれるような雰囲気で！"
     )
 
-    # 뉴스 요약 리스트를 문자열로 정리
+    # ニュース要約リストを文字列に変換
+    # ニュース要約リストを文字列に変換
     article_list = "\n".join([f"- {text}" for text in final_texts])
-    context = prompt.replace("{{뉴스_요약_리스트}}", article_list)
+    context = prompt.replace("{{ニュース要約リスト}}", article_list)
 
     try:
         response = openai.chat.completions.create(
-            model=MODEL_NAME,  # 환경변수 모델 사용
+            model=MODEL_NAME,  # モデルは環境変数から取得
             messages=[{"role": "user", "content": context}],
             temperature=0.7,
-            max_tokens=2000  # 토큰 제한: 2200에서 2000으로 단축
+            max_tokens=2000  # トークン制限：2200から2000に短縮
         )
         
         result = response.choices[0].message.content.strip()
-        logger.info(f"생성된 대본 길이: {len(result)}자 (모델: {MODEL_NAME})")  # 사용 모델 로그 추가
+        logger.info(f"生成された原稿の長さ: {len(result)}文字 (モデル: {MODEL_NAME})")  # 使用モデルログ追加
+        # 生成された原稿の長さをログに記録
         return result
         
     except openai.RateLimitError as e:
-        logger.warning(f" OpenAI Rate Limit 초과 (대본 생성): {e}")
-        return f"오늘 {category} 분야의 주요 소식들을 전해드렸습니다."
+        logger.warning(f" OpenAI Rate Limit 超過 (ポッドキャスト原稿生成): {e}")
+        # OpenAIレート制限超過
+        return f"今日は{category}分野の重要なニュースをお伝えしました。"
     except openai.APIError as e:
-        logger.warning(f" OpenAI API 오류 (대본 생성): {e}")
-        return f"오늘 {category} 분야의 주요 소식들을 전해드렸습니다."
+        logger.warning(f" OpenAI API エラー (ポッドキャスト原稿生成): {e}")
+        # OpenAI APIエラー
+        return f"今日は{category}分野の重要なニュースをお伝えしました。"
     except openai.AuthenticationError as e:
-        logger.warning(f" OpenAI 인증 오류 (대본 생성): {e}")
-        return f"오늘 {category} 분야의 주요 소식들을 전해드렸습니다."
+        logger.warning(f" OpenAI 認証エラー (ポッドキャスト原稿生成): {e}")
+        # OpenAI認証エラー
+        return f"今日は{category}分野の重要なニュースをお伝えしました。"
     except Exception as e:
-        logger.warning(f" 대본 생성 예상치 못한 오류: {e}")
-        return f"오늘 {category} 분야의 주요 소식들을 전해드렸습니다."
+        logger.warning(f" ポッドキャスト原稿生成中の予期せぬエラー: {e}")
+        # 台本生成中の予期せぬエラー
+        return f"今日は{category}分野の重要なニュースをお伝えしました。"

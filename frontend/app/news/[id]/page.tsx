@@ -31,7 +31,7 @@ export default function NewsDetailPage() {
       const data = await apiClient.getNewsDetail(newsId)
       setNews(data)
 
-      // 북마크 상태 확인 로직 추가 필요
+      // ブックマーク状態の確認ロジックを追加する必要がある
     } catch (error) {
       console.error("뉴스 상세 조회 실패:", error)
     } finally {

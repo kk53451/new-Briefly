@@ -1,25 +1,25 @@
-#  Briefly Backend API 문서
+#  Briefly バックエンドAPI ドキュメント
 
-##  프로젝트 개요
+##  プロジェクト概要
 
-**Briefly**는 AI 기반 뉴스 팟캐스트 백엔드 시스템으로, 매일 뉴스를 수집하여 GPT-4o-mini로 요약하고 ElevenLabs TTS로 음성을 생성하는 자동화 서비스입니다.
+**Briefly**は、AI基盤のニュースポッドキャストバックエンドシステムで、毎日ニュースを収集してGPT-4o-miniで要約し、ElevenLabs TTSで音声を生成する自動化サービスです。
 
-###  핵심 기능
--  **AI 뉴스 요약**: GPT-4o-mini + 이중 클러스터링으로 중복 제거
--  **TTS 변환**: ElevenLabs 고품질 음성 생성  
--  **스케줄링**: 매일 오전 6시(KST) 자동 실행
--  **인증**: 카카오 로그인 + JWT 토큰
--  **데이터**: AWS DynamoDB + S3 스토리지
+###  主要機能
+-  **AIニュース要約**: GPT-4o-mini + 二重クラスタリングで重複除去
+-  **TTS変換**: ElevenLabs 高品質音声生成
+-  **スケジューリング**: 毎日午前6時(KST) 自動実行
+-  **認証**: カカオログイン + JWTトークン
+-  **データ**: AWS DynamoDB + S3ストレージ
 
-###  **구현된 유즈케이스**
-- **총 13개 핵심 유즈케이스** 구현 완료
-- **UC-001~003**: 사용자 인증 및 온보딩 (3개)
-- **UC-004~006**: 뉴스 조회 및 탐색 (3개)
-- **UC-007~008**: 팟캐스트 및 음성 서비스 (2개)  
-- **UC-009~011**: 개인화 및 설정 (3개)
-- **UC-012~013**: 자동화 시스템 (2개)
+###  **実装済みユースケース**
+- **合計13個の主要ユースケース** 実装完了
+- **UC-001~003**: ユーザー認証とオンボーディング (3個)
+- **UC-004~006**: ニュース閲覧と探索 (3個)
+- **UC-007~008**: ポッドキャストと音声サービス (2個)
+- **UC-009~011**: パーソナライゼーションと設定 (3個)
+- **UC-012~013**: 自動化システム (2個)
 
-###  시스템 아키텍처
+###  システムアーキテクチャ
 
 ```
  External APIs           Backend Services          Data Storage
@@ -27,7 +27,7 @@
 │ • OpenAI GPT    │────▶│   FastAPI Lambda    │────▶│   DynamoDB      │
 │ • ElevenLabs    │     │                     │     │   - NewsCards   │
 │ • DeepSearch    │     │ • API Routes        │     │   - Frequencies │
-│ • 카카오 로그인  │     │ • Services          │     │   - Users       │
+│ • カカオログイン  │     │ • Services          │     │   - Users       │
 └─────────────────┘     │ • Tasks             │     │   - Bookmarks   │
                         └─────────────────────┘     └─────────────────┘
                                    │                          │
@@ -37,71 +37,71 @@
                         └─────────────────────┘     └─────────────────┘
 ```
 
-###  배포 정보
+###  デプロイ情報
 
 - **Base URL**: `https://your-api-gateway-url/`
-- **배포 도구**: AWS SAM
-- **실행 환경**: AWS Lambda (Python 3.12)
-- **스케줄러**: EventBridge (매일 오전 6시 KST)
+- **デプロイツール**: AWS SAM
+- **実行環境**: AWS Lambda (Python 3.12)
+- **スケジューラー**: EventBridge (毎日午前6時 KST)
 
 ---
 
-##  인증 시스템
+##  認証システム
 
-### JWT 토큰 사용법
+### JWTトークンの使用方法
 
-모든 보호된 엔드포인트는 다음과 같은 헤더가 필요합니다:
+すべての保護されたエンドポイントには、以下のようなヘッダーが必要です：
 
 ```http
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-### 인증 플로우
+### 認証フロー
 
-1. **카카오 로그인 시작** → `/api/auth/kakao/login`
-2. **사용자 카카오 인증** → 카카오 서버
-3. **콜백 처리** → `/api/auth/kakao/callback`
-4. **JWT 토큰 발급** → 클라이언트에 전달
-5. **API 호출 시 토큰 사용** → `Authorization` 헤더
+1. **カカオログイン開始** → `/api/auth/kakao/login`
+2. **ユーザーカカオ認証** → カカオサーバー
+3. **コールバック処理** → `/api/auth/kakao/callback`
+4. **JWTトークン発行** → クライアントに配信
+5. **API呼び出し時のトークン使用** → `Authorization` ヘッダー
 
 ---
 
-## 📚 API 엔드포인트
+## 📚 APIエンドポイント
 
-### 🔑 1. 인증 API (`/api/auth`)
+### 🔑 1. 認証API (`/api/auth`)
 
-#### 1-1. 카카오 로그인 시작
+#### 1-1. カカオログイン開始
 
 ```http
 GET /api/auth/kakao/login
 ```
 
-**설명**: 카카오 OAuth 로그인 페이지로 리다이렉트
+**説明**: カカオ OAuth ログインページにリダイレクト
 
-**매개변수**: 없음
+**パラメータ**: なし
 
-**응답**: 카카오 인증 페이지로 리다이렉트
+**レスポンス**: カカオ認証ページにリダイレクト
 
-**사용 예시**:
+**使用例**:
 ```javascript
-// 프론트엔드에서 사용
+// フロントエンドでの使用
 window.location.href = 'https://api.briefly.com/api/auth/kakao/login';
 ```
 
 ---
 
-#### 1-2. 카카오 로그인 콜백
+#### 1-2. カカオログインコールバック
 
 ```http
 GET /api/auth/kakao/callback?code={authorization_code}
 ```
 
-**설명**: 카카오 로그인 완료 후 JWT 토큰 발급
+**説明**: カカオログイン完了後のJWTトークン発行
 
-**매개변수**:
-- `code` (query, required): 카카오에서 전달하는 인증 코드
+**パラメータ**:
+- `code` (query, required): カカオから渡される認証コード
 
-**성공 응답** (200):
+**レスポンス** (200):
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -110,14 +110,14 @@ GET /api/auth/kakao/callback?code={authorization_code}
 }
 ```
 
-**에러 응답**:
-- `400`: 인증 코드 만료/재사용
+**エラーレスポンス**:
+- `400`: 認証コード期限切れ/再使用
   ```json
   {
     "detail": "이 인증 코드는 이미 사용되었습니다. 다시 로그인해주세요."
   }
   ```
-- `500`: 카카오 서버 연결 실패
+- `500`: カカオサーバー接続失敗
   ```json
   {
     "detail": "카카오 서버 연결 실패"
@@ -126,16 +126,16 @@ GET /api/auth/kakao/callback?code={authorization_code}
 
 ---
 
-#### 1-3. 내 정보 조회
+#### 1-3. ユーザー情報取得
 
 ```http
 GET /api/auth/me
 Authorization: Bearer {token}
 ```
 
-**설명**: 현재 로그인한 사용자 정보 조회
+**説明**: 現在ログインしているユーザー情報取得
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "user_id": "kakao_123456789",
@@ -148,8 +148,8 @@ Authorization: Bearer {token}
 }
 ```
 
-**에러 응답**:
-- `401`: 토큰 없음/만료
+**エラーレスポンス**:
+- `401`: トークンなし/期限切れ
   ```json
   {
     "detail": "토큰이 필요합니다"
@@ -158,16 +158,16 @@ Authorization: Bearer {token}
 
 ---
 
-#### 1-4. 로그아웃
+#### 1-4. ログアウト
 
 ```http
 POST /api/auth/logout
 Authorization: Bearer {token}
 ```
 
-**설명**: 로그아웃 처리 (클라이언트에서 토큰 삭제 권장)
+**説明**: ログアウト処理 (クライアントからトークン削除を推奨)
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "message": "로그아웃 완료 (클라이언트 토큰 삭제 권장)"
@@ -176,18 +176,18 @@ Authorization: Bearer {token}
 
 ---
 
-### 👤 2. 사용자 API (`/api/user`)
+### 👤 2. ユーザーAPI (`/api/user`)
 
-#### 2-1. 프로필 조회
+#### 2-1. プロフィール取得
 
 ```http
 GET /api/user/profile
 Authorization: Bearer {token}
 ```
 
-**설명**: 로그인한 사용자의 프로필 정보 조회
+**説明**: ログインしているユーザーのプロフィール情報取得
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "user_id": "kakao_123456789",
@@ -202,16 +202,16 @@ Authorization: Bearer {token}
 
 ---
 
-#### 2-2. 북마크 목록 조회
+#### 2-2. ブックマークリスト取得
 
 ```http
 GET /api/user/bookmarks
 Authorization: Bearer {token}
 ```
 
-**설명**: 사용자가 북마크한 뉴스 목록 조회
+**説明**: ユーザーがブックマークしたニュースリスト取得
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 [
   {
@@ -225,16 +225,16 @@ Authorization: Bearer {token}
 
 ---
 
-#### 2-3. 내 주파수 조회
+#### 2-3. ユーザー周波数取得
 
 ```http
 GET /api/user/frequencies
 Authorization: Bearer {token}
 ```
 
-**설명**: 사용자의 관심 카테고리별 공유 주파수 요약 조회 (오늘 날짜 기준)
+**説明**: ユーザーの関心カテゴリ別共有周波数要約取得 (今日日付ベース)
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 [
   {
@@ -249,16 +249,16 @@ Authorization: Bearer {token}
 
 ---
 
-#### 2-4. 관심 카테고리 조회
+#### 2-4. 関心カテゴリ取得
 
 ```http
 GET /api/user/categories
 Authorization: Bearer {token}
 ```
 
-**설명**: 사용자의 관심 카테고리 목록 조회
+**説明**: ユーザーの関心カテゴリリスト取得
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "interests": ["정치", "경제"]
@@ -267,23 +267,23 @@ Authorization: Bearer {token}
 
 ---
 
-#### 2-5. 관심 카테고리 수정
+#### 2-5. 関心カテゴリ修正
 
 ```http
 PUT /api/user/categories
 Authorization: Bearer {token}
 ```
 
-**설명**: 사용자의 관심 카테고리 목록 수정
+**説明**: ユーザーの関心カテゴリリスト修正
 
-**요청 Body**:
+**リクエスト Body**:
 ```json
 {
   "interests": ["정치", "경제", "IT/과학"]
 }
 ```
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "message": "관심 카테고리가 업데이트되었습니다."
@@ -292,16 +292,16 @@ Authorization: Bearer {token}
 
 ---
 
-#### 2-6. 온보딩 완료
+#### 2-6. オンボーディング完了
 
 ```http
 POST /api/user/onboarding
 Authorization: Bearer {token}
 ```
 
-**설명**: 온보딩 완료 처리
+**説明**: オンボーディング完了処理
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "message": "온보딩 완료"
@@ -310,16 +310,16 @@ Authorization: Bearer {token}
 
 ---
 
-#### 2-7. 온보딩 상태 확인
+#### 2-7. オンボーディングステータス確認
 
 ```http
 GET /api/user/onboarding/status
 Authorization: Bearer {token}
 ```
 
-**설명**: 온보딩 완료 여부 확인
+**説明**: オンボーディング完了確認
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "onboarded": true
@@ -328,16 +328,16 @@ Authorization: Bearer {token}
 
 ---
 
-#### 2-8. 온보딩 페이지 정보
+#### 2-8. オンボーディングページ情報
 
 ```http
 GET /api/user/onboarding
 Authorization: Bearer {token}
 ```
 
-**설명**: 온보딩 페이지 정보 제공
+**説明**: オンボーディングページ情報提供
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "user_id": "kakao_123456789",
@@ -349,21 +349,21 @@ Authorization: Bearer {token}
 
 ---
 
-### 📰 3. 뉴스 API (`/api/news`)
+### 📰 3. ニュースAPI (`/api/news`)
 
-#### 3-1. 카테고리별 뉴스 조회
+#### 3-1. カテゴリ別ニュース取得
 
 ```http
 GET /api/news?category={category}
 ```
 
-**설명**: 특정 카테고리의 오늘 뉴스 목록 조회
+**説明**: 特定カテゴリの今日ニュースリスト取得
 
-**매개변수**:
-- `category` (query, required): 뉴스 카테고리
-  - 지원 카테고리: `정치`, `경제`, `사회`, `생활/문화`, `IT/과학`, `연예`, `전체`
+**パラメータ**:
+- `category` (query, required): ニュースカテゴリ
+  - サポートカテゴリ: `정치`, `경제`, `사회`, `생활/문화`, `IT/과학`, `연예`, `전체`
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 [
   {
@@ -380,8 +380,8 @@ GET /api/news?category={category}
 ]
 ```
 
-**에러 응답**:
-- `400`: 지원하지 않는 카테고리
+**エラーレスポンス**:
+- `400`: サポートしないカテゴリ
   ```json
   {
     "detail": "지원하지 않는 카테고리입니다: 스포츠"
@@ -390,15 +390,15 @@ GET /api/news?category={category}
 
 ---
 
-#### 3-2. 오늘의 뉴스 그룹핑
+#### 3-2. 今日のニュースグループ化
 
 ```http
 GET /api/news/today
 ```
 
-**설명**: 오늘의 뉴스를 카테고리별로 그룹핑하여 반환
+**説明**: 今日のニュースをカテゴリ別でグループ化して返す
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "정치": [
@@ -420,15 +420,15 @@ GET /api/news/today
 
 ---
 
-#### 3-3. 뉴스 상세 조회
+#### 3-3. ニュース詳細取得
 
 ```http
 GET /api/news/{news_id}
 ```
 
-**설명**: 개별 뉴스 카드 상세 내용 조회
+**説明**: 個別ニュースカード詳細内容取得
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "news_id": "news_123",
@@ -445,8 +445,8 @@ GET /api/news/{news_id}
 }
 ```
 
-**에러 응답**:
-- `404`: 뉴스를 찾을 수 없음
+**エラーレスポンス**:
+- `404`: ニュースを見つけることができません
   ```json
   {
     "detail": "뉴스를 찾을 수 없습니다."
@@ -455,23 +455,23 @@ GET /api/news/{news_id}
 
 ---
 
-#### 3-4. 뉴스 북마크 추가
+#### 3-4. ニュースブックマーク追加
 
 ```http
 POST /api/news/bookmark
 Authorization: Bearer {token}
 ```
 
-**설명**: 뉴스 북마크 추가
+**説明**: ニュースブックマーク追加
 
-**요청 Body**:
+**リクエスト Body**:
 ```json
 {
   "news_id": "news_123"
 }
 ```
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "message": "북마크 완료"
@@ -480,16 +480,16 @@ Authorization: Bearer {token}
 
 ---
 
-#### 3-5. 뉴스 북마크 삭제
+#### 3-5. ニュースブックマーク削除
 
 ```http
 DELETE /api/news/bookmark/{news_id}
 Authorization: Bearer {token}
 ```
 
-**설명**: 뉴스 북마크 삭제
+**説明**: ニュースブックマーク削除
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "message": "북마크 삭제됨"
@@ -498,18 +498,18 @@ Authorization: Bearer {token}
 
 ---
 
-###  4. 주파수 API (`/api/frequencies`)
+###  4. 周波数API (`/api/frequencies`)
 
-#### 4-1. 내 주파수 목록
+#### 4-1. ユーザー周波数リスト
 
 ```http
 GET /api/frequencies
 Authorization: Bearer {token}
 ```
 
-**설명**: 사용자의 관심 카테고리별 공유 주파수 목록 (오늘 날짜 기준)
+**説明**: ユーザーの関心カテゴリ別共有周波数リスト (今日日付ベース)
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 [
   {
@@ -525,19 +525,19 @@ Authorization: Bearer {token}
 
 ---
 
-#### 4-2. 주파수 히스토리
+#### 4-2. 周波数ヒストリー
 
 ```http
 GET /api/frequencies/history?limit={limit}
 Authorization: Bearer {token}
 ```
 
-**설명**: 사용자의 관심 카테고리별 주파수 히스토리 (과거 데이터)
+**説明**: ユーザーの関心カテゴリ別周波数ヒストリー (過去データ)
 
-**매개변수**:
-- `limit` (query, optional): 조회할 개수 (기본값: 30, 최대: 100)
+**パラメータ**:
+- `limit` (query, optional): 取得数 (デフォルト: 30, 最大: 100)
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 [
   {
@@ -553,16 +553,16 @@ Authorization: Bearer {token}
 
 ---
 
-#### 4-3. 카테고리별 주파수 상세
+#### 4-3. カテゴリ別周波数詳細
 
 ```http
 GET /api/frequencies/{category}
 Authorization: Bearer {token}
 ```
 
-**설명**: 특정 카테고리의 주파수 상세 정보 조회
+**説明**: 特定カテゴリの周波数詳細情報取得
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "frequency_id": "politics#2025-01-27",
@@ -574,8 +574,8 @@ Authorization: Bearer {token}
 }
 ```
 
-**에러 응답**:
-- `404`: 해당 주파수가 없음
+**エラーレスポンス**:
+- `404`: 該当周波数がありません
   ```json
   {
     "detail": "해당 주파수가 없습니다."
@@ -584,17 +584,17 @@ Authorization: Bearer {token}
 
 ---
 
-### 📂 5. 카테고리 API (`/api`)
+### 📂 5. カテゴリAPI (`/api`)
 
-#### 5-1. 전체 카테고리 목록
+#### 5-1. 全カテゴリリスト取得
 
 ```http
 GET /api/categories
 ```
 
-**설명**: 전체 카테고리 목록 반환 (인증 불필요)
+**説明**: 全カテゴリリスト返却 (認証不要)
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "categories": ["정치", "경제", "사회", "생활/문화", "IT/과학", "연예"]
@@ -603,16 +603,16 @@ GET /api/categories
 
 ---
 
-#### 5-2. 사용자 카테고리 조회
+#### 5-2. ユーザーカテゴリ取得
 
 ```http
 GET /api/user/categories
 Authorization: Bearer {token}
 ```
 
-**설명**: 로그인된 사용자의 관심 카테고리 조회
+**説明**: ログインしているユーザーの関心カテゴリ取得
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "user_id": "kakao_123456789",
@@ -622,23 +622,23 @@ Authorization: Bearer {token}
 
 ---
 
-#### 5-3. 사용자 카테고리 수정
+#### 5-3. ユーザーカテゴリ修正
 
 ```http
 PUT /api/user/categories
 Authorization: Bearer {token}
 ```
 
-**설명**: 로그인된 사용자의 관심 카테고리 수정
+**説明**: ログインしているユーザーの関心カテゴリ修正
 
-**요청 Body**:
+**リクエスト Body**:
 ```json
 {
   "interests": ["정치", "경제", "IT/과학"]
 }
 ```
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "message": "관심 카테고리 업데이트 완료",
@@ -646,8 +646,8 @@ Authorization: Bearer {token}
 }
 ```
 
-**에러 응답**:
-- `400`: 잘못된 카테고리
+**エラーレスポンス**:
+- `400`: 不正なカテゴリ
   ```json
   {
     "detail": "지원하지 않는 카테고리입니다: ['스포츠']"
@@ -656,17 +656,17 @@ Authorization: Bearer {token}
 
 ---
 
-###  6. 기타 엔드포인트
+###  6. 他エンドポイント
 
-#### 6-1. 루트 헬스체크
+#### 6-1. ルートヘルスチェック
 
 ```http
 GET /
 ```
 
-**설명**: API 서버 상태 확인
+**説明**: APIサーバー状態確認
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "message": "Welcome to Briefly API"
@@ -675,15 +675,15 @@ GET /
 
 ---
 
-#### 6-2. 온보딩 페이지 정보
+#### 6-2. オンボーディングページ情報
 
 ```http
 GET /onboarding
 ```
 
-**설명**: 온보딩 페이지 정보 제공 (인증 불필요)
+**説明**: オンボーディングページ情報提供 (認証不要)
 
-**응답** (200):
+**レスポンス** (200):
 ```json
 {
   "message": "온보딩 페이지입니다",
@@ -693,59 +693,59 @@ GET /onboarding
 
 ---
 
-##  공통 에러 응답
+##  共通エラーレスポンス
 
-### 인증 에러
-- `401 Unauthorized`: JWT 토큰 없음/만료
-- `403 Forbidden`: 권한 없음
+### 認証エラー
+- `401 Unauthorized`: JWTトークンなし/期限切れ
+- `403 Forbidden`: 権限なし
 
-### 요청 에러
-- `400 Bad Request`: 잘못된 요청 파라미터
-- `404 Not Found`: 리소스를 찾을 수 없음
-- `422 Validation Error`: 요청 형식 오류
+### リクエストエラー
+- `400 Bad Request`: 不正なリクエストパラメータ
+- `404 Not Found`: リソースを見つけることができません
+- `422 Validation Error`: リクエスト形式エラー
 
-### 서버 에러
-- `500 Internal Server Error`: 서버 내부 오류
+### サーバーエラー
+- `500 Internal Server Error`: サーバー内部エラー
 
 ---
 
-##  API 사용 예시
+##  API使用例
 
-### 1. 사용자 인증 플로우
+### 1. ユーザー認証フロー
 ```javascript
-// 1. 카카오 로그인
+// 1. カカオログイン
 window.location.href = '/api/auth/kakao/login';
 
-// 2. 콜백에서 토큰 받기
+// 2. コールバックからトークン取得
 const response = await fetch('/api/auth/kakao/callback?code=AUTH_CODE');
 const { access_token } = await response.json();
 
-// 3. 토큰으로 API 호출
+// 3. トークンでAPI呼び出し
 const userInfo = await fetch('/api/auth/me', {
   headers: { 'Authorization': `Bearer ${access_token}` }
 });
 ```
 
-### 2. 뉴스 조회 플로우
+### 2. ニュース取得フロー
 ```javascript
-// 1. 전체 뉴스 조회
+// 1. 全ニュース取得
 const allNews = await fetch('/api/news?category=전체');
 
-// 2. 특정 카테고리 뉴스
+// 2. 特定カテゴリニュース
 const politicsNews = await fetch('/api/news?category=정치');
 
-// 3. 뉴스 상세 조회
+// 3. ニュース詳細取得
 const newsDetail = await fetch('/api/news/news_123');
 ```
 
-### 3. 주파수 조회 플로우
+### 3. 周波数取得フロー
 ```javascript
-// 1. 내 관심 주파수 조회
+// 1. ユーザー関心周波数取得
 const myFrequencies = await fetch('/api/frequencies', {
   headers: { 'Authorization': `Bearer ${token}` }
 });
 
-// 2. 주파수 히스토리 조회
+// 2. 周波数ヒストリー取得
 const history = await fetch('/api/frequencies/history?limit=10', {
   headers: { 'Authorization': `Bearer ${token}` }
 });
@@ -753,22 +753,22 @@ const history = await fetch('/api/frequencies/history?limit=10', {
 
 ---
 
-##  환경 변수
+##  環境変数
 
 ```bash
-# 카카오 로그인
+# カカオログイン
 KAKAO_CLIENT_ID=your_kakao_client_id
 KAKAO_REDIRECT_URI=your_redirect_uri
 
-# AI 서비스
+# AIサービス
 OPENAI_API_KEY=your_openai_key
 ELEVENLABS_API_KEY=your_elevenlabs_key
 ELEVENLABS_VOICE_ID=your_voice_id
 
-# 뉴스 API
+# ニュースAPI
 DEEPSEARCH_API_KEY=your_deepsearch_key
 
-# AWS 리소스
+# AWSリソース
 DDB_NEWS_TABLE=NewsCards
 DDB_FREQ_TABLE=Frequencies
 DDB_USERS_TABLE=Users
@@ -778,19 +778,19 @@ S3_BUCKET=briefly-news-audio
 
 ---
 
-##  개발 로드맵
+##  開発ロードマップ
 
-###  완료된 기능
-- 카카오 로그인 및 JWT 인증
-- 뉴스 수집 및 요약 시스템
-- TTS 음성 변환 및 S3 저장
-- 사용자 프로필 및 북마크 관리
-- 주파수 생성 및 조회
+###  完了した機能
+- カカオログインとJWT認証
+- ニュース収集と要約システム
+- TTS音声変換とS3保存
+- ユーザープロフィルとブックマーク管理
+- 周波数生成と取得
 
-###  향후 확장 가능 기능
-- 푸시 알림 시스템
-- 뉴스 검색 기능  
-- 음성 재생 분석
-- 실시간 뉴스 스트리밍
+###  今後拡張可能な機能
+- プッシュ通知システム
+- ニュース検索機能  
+- 音声再生分析
+- リアルタイムニュースストリーミング
 
 ---

@@ -9,18 +9,18 @@ export default function KakaoCallbackPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = useState("로그인 처리 중입니다...")
-  const processingRef = useRef(false) // useRef로 더 강력한 중복 방지
+  const processingRef = useRef(false) // useRefでより強力な重複防止
 
   useEffect(() => {
-    if (processingRef.current) return // 이미 처리 중이면 중단
+    if (processingRef.current) return // すでに処理中なら中断
     
     const code = searchParams.get("code")
     const error = searchParams.get("error")
 
     const handleKakaoCallback = async () => {
-      processingRef.current = true // 처리 시작 표시
+      processingRef.current = true // 処理開始フラグ
       
-      // 카카오에서 오류를 반환한 경우
+      // カカオからエラーが返された場合
       if (error) {
         setStatus("카카오 로그인이 취소되었습니다.")
         setTimeout(() => router.push("/"), 3000)
@@ -35,14 +35,14 @@ export default function KakaoCallbackPage() {
 
       try {
         setStatus("서버와 통신 중...")
-        // 인증 코드 수신 확인
+        // 認証コード受信確認
 
-        // URL을 정리하여 코드 재사용 방지
+        // URLを整理してコード再利用防止
         const currentUrl = window.location.href
         const urlWithoutParams = window.location.origin + window.location.pathname
         if (currentUrl !== urlWithoutParams) {
           window.history.replaceState({}, document.title, urlWithoutParams)
-          // URL 파라미터 제거 완료
+          // URLパラメータ削除完了
         }
 
         const res = await fetch(`${API_BASE_URL}/api/auth/kakao/callback?code=${encodeURIComponent(code)}`, {
@@ -58,7 +58,7 @@ export default function KakaoCallbackPage() {
           console.error("로그인 실패:", data)
           setStatus("로그인 실패")
           
-          // 특정 오류 메시지 처리
+          // 特定エラーメッセージ処理
           if (data.detail && (
             data.detail.includes("만료되었거나 이미 사용") || 
             data.detail.includes("이미 사용된 코드")
@@ -73,14 +73,14 @@ export default function KakaoCallbackPage() {
         }
 
         if (data.access_token) {
-          // 토큰 및 사용자 정보 저장
+          // トークンとユーザー情報を保存
           localStorage.setItem("access_token", data.access_token)
           localStorage.setItem("user_id", data.user_id)
           localStorage.setItem("nickname", data.nickname)
 
           setStatus("로그인 성공! 리디렉션 중...")
 
-          // 온보딩 상태 확인
+          // オンボーディング状態確認
           try {
             const onboardingRes = await fetch(`${API_BASE_URL}/api/user/onboarding/status`, {
               headers: {
@@ -97,11 +97,11 @@ export default function KakaoCallbackPage() {
                 router.push("/onboarding")
               }
             } else {
-              // 온보딩 상태 확인 실패 시 기본적으로 온보딩으로
+              // オンボーディング状態確認失敗時はデフォルトでオンボーディングへ
               router.push("/onboarding")
             }
                       } catch (onboardingError) {
-              // 온보딩 상태 확인 실패 시 기본적으로 온보딩으로
+              // オンボーディング状態確認失敗時はデフォルトでオンボーディングへ
               router.push("/onboarding")
             }
                   } else {
@@ -137,7 +137,7 @@ export default function KakaoCallbackPage() {
           </div>
         )}
         <div className="mt-4 text-sm text-gray-600">
-          페이지를 새로고침하지 마세요
+          ページをリロードしないでください
         </div>
       </div>
     </div>

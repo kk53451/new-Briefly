@@ -1,3 +1,5 @@
+# 認証（カカオログイン・JWT）関連のルーター設定（prefix: /api/auth）
+
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 import os, requests
@@ -13,13 +15,17 @@ router = APIRouter(prefix="/api/auth", tags=["Auth"])
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
 KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
 
-# 사용된 코드를 임시 저장 (실제 운영에서는 Redis 등 사용)
+# 使用済みコードの一時保存（実運用ではRedisなどを使用）
 used_codes = set()
 
-#  1. 카카오 로그인 URL 리다이렉트
+# [GET] /kakao/login
 @router.get("/kakao/login")
 def kakao_login():
-    # state 파라미터로 CSRF 공격 방지 및 세션 구분
+    """
+    カカオのOAuth認証ページにリダイレクトします。
+
+    - stateパラメータを生成し、CSRF攻撃を防ぎます。
+    """
     state = f"briefly_{int(time.time())}"
     
     kakao_auth_url = (
@@ -31,38 +37,43 @@ def kakao_login():
     )
     return RedirectResponse(kakao_auth_url)
 
-#  2. 콜백 처리
+# [GET] /kakao/callback
 @router.get("/kakao/callback")
 def kakao_callback(code: str):
-    print(f" 카카오 콜백 시작")
-    print(f" 원본 code: {code}")
-    print(f" code 길이: {len(code)}")
+    """
+    カカオログインのコールバックを処理し、JWTトークンを発行します。
+
+    1. 認証コード(code)の有効性を検証します（再利用防止）。
+    2. 認証コードを使い、カカオからアクセストークンを取得します。
+    3. アクセストークンを使い、カカオからユーザー情報を取得します。
+    4. ユーザー情報をDBに保存または更新します（新規ユーザーの場合は作成）。
+    5. Brieflyサービス用のJWTトークンを発行し、クライアントに返します。
+    """
+    print(f" カカオコールバック開始")
+    print(f" 元のcode: {code}")
+    print(f" codeの長さ: {len(code)}")
     
-    # URL 디코딩 시도
     try:
         decoded_code = urllib.parse.unquote(code)
-        print(f" 디코딩된 code: {decoded_code}")
+        print(f" デコードされたcode: {decoded_code}")
         if decoded_code != code:
-            print(f" 코드가 URL 인코딩되어 있었음")
+            print(f" コードはURLエンコードされていた")
             code = decoded_code
     except Exception as e:
-        print(f" URL 디코딩 실패: {e}")
+        print(f" URLデコード失敗: {e}")
     
-    # 코드 재사용 체크
     if code in used_codes:
-        print(f" 이미 사용된 코드: {code[:20]}...")
+        print(f" すでに使用されたコード: {code[:20]}...")
         raise HTTPException(
             status_code=400, 
-            detail="이 인증 코드는 이미 사용되었습니다. 다시 로그인해주세요."
+            detail="この認証コードはすでに使用されました。再度ログインしてください。"
         )
     
-    # 사용된 코드로 마킹
     used_codes.add(code)
     
     print(f" KAKAO_CLIENT_ID: {KAKAO_CLIENT_ID}")
     print(f" KAKAO_REDIRECT_URI: {KAKAO_REDIRECT_URI}")
     
-    # 2-1. 토큰 요청
     token_data = {
         "grant_type": "authorization_code",
         "client_id": KAKAO_CLIENT_ID,
@@ -70,7 +81,7 @@ def kakao_callback(code: str):
         "code": code,
     }
     
-    print(f" 토큰 요청 데이터: {token_data}")
+    print(f" トークンリクエストデータ: {token_data}")
     
     try:
         token_res = requests.post(
@@ -80,45 +91,41 @@ def kakao_callback(code: str):
             timeout=10
         )
         
-        print(f" 카카오 토큰 응답 상태: {token_res.status_code}")
-        print(f" 카카오 토큰 응답 헤더: {dict(token_res.headers)}")
+        print(f" カカオトークン応答ステータス: {token_res.status_code}")
+        print(f" カカオトークン応答ヘッダー: {dict(token_res.headers)}")
         
         if token_res.status_code != 200:
-            print(f" HTTP 오류: {token_res.text}")
-            # 실패한 코드를 used_codes에서 제거 (재시도 가능하게)
+            print(f" HTTPエラー: {token_res.text}")
             used_codes.discard(code)
             raise HTTPException(
                 status_code=400, 
-                detail=f"카카오 토큰 요청 실패 (HTTP {token_res.status_code}): {token_res.text}"
+                detail=f"カカオトークン取得失敗 (HTTP {token_res.status_code}): {token_res.text}"
             )
             
         token_json = token_res.json()
-        print(f" 카카오 토큰 응답: {token_json}")
+        print(f" カカオトークン応答: {token_json}")
         
     except requests.exceptions.RequestException as e:
-        print(f" 네트워크 오류: {str(e)}")
-        # 네트워크 오류시에도 코드 재사용 가능하게
+        print(f" ネットワークエラー: {str(e)}")
         used_codes.discard(code)
-        raise HTTPException(status_code=500, detail="카카오 서버 연결 실패")
+        raise HTTPException(status_code=500, detail="カカオサーバー接続失敗")
     
     access_token = token_json.get("access_token")
 
     if not access_token:
-        error_description = token_json.get("error_description", "알 수 없는 오류")
+        error_description = token_json.get("error_description", "不明なエラー")
         error_code = token_json.get("error", "unknown_error")
-        print(f" 토큰 발급 실패 - error: {error_code}, description: {error_description}")
+        print(f" トークン発行失敗 - error: {error_code}, description: {error_description}")
         
-        # 특정 오류에 대한 사용자 친화적 메시지
         if error_code == "invalid_grant":
-            detail = "인증 코드가 만료되었거나 이미 사용되었습니다. 다시 로그인해주세요."
+            detail = "認証コードが期限切れまたはすでに使用されました。再度ログインしてください。"
         elif error_code == "invalid_client":
-            detail = "카카오 앱 설정에 문제가 있습니다."
+            detail = "カカオアプリの設定に問題があります。"
         else:
-            detail = f"카카오 로그인 실패: {error_description}"
+            detail = f"カカオログイン失敗: {error_description}"
             
         raise HTTPException(status_code=400, detail=detail)
 
-    # 2-2. 사용자 정보 요청
     profile_res = requests.get(
         url="https://kapi.kakao.com/v2/user/me",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -131,14 +138,13 @@ def kakao_callback(code: str):
     profile_image = kakao_account.get("profile", {}).get("profile_image_url", "")
 
     if not kakao_id or not nickname:
-        raise HTTPException(status_code=400, detail="카카오 사용자 정보 조회 실패")
+        raise HTTPException(status_code=400, detail="カカオユーザー情報取得失敗")
 
-    # 2-3. DB 저장
     user_id = f"kakao_{kakao_id}"
-    user = get_user(user_id)  #  get_user가 None 반환하도록 구성 필요
+    user = get_user(user_id)
 
     if user is None:
-        print(f" 신규 사용자 생성: {user_id}")
+        print(f" 新規ユーザー作成: {user_id}")
         save_user({
             "user_id": user_id,
             "nickname": nickname,
@@ -149,16 +155,14 @@ def kakao_callback(code: str):
         })
         user = get_user(user_id)
     else:
-        # 기존 사용자의 경우에도 카카오에서 받은 최신 정보로 업데이트
-        print(f" 기존 사용자 정보 업데이트: {user_id}")
+        print(f" 既存ユーザー情報更新: {user_id}")
         user["nickname"] = nickname
         user["profile_image"] = profile_image
         save_user(user)
 
     if not user or "nickname" not in user:
-        raise HTTPException(status_code=500, detail="사용자 저장 실패")
+        raise HTTPException(status_code=500, detail="ユーザー保存失敗")
 
-    # 2-4. JWT 토큰 발급
     jwt_token = create_access_token(user_id)
     return JSONResponse({
         "access_token": jwt_token,
@@ -166,12 +170,20 @@ def kakao_callback(code: str):
         "nickname": user["nickname"]
     })
 
-#  3. 사용자 정보 조회
+# [GET] /me
 @router.get("/me")
 def auth_me(user: dict = Depends(get_current_user)):
+    """
+    現在ログインしているユーザーの情報を返します。
+    - JWTトークンからユーザーを特定します。
+    """
     return user
 
-#  4. 로그아웃
+# [POST] /logout
 @router.post("/logout")
 def logout():
-    return {"message": "로그아웃 완료 (클라이언트 토큰 삭제 권장)"}
+    """
+    ログアウト処理を実行します。
+    - サーバー側でのセッション無効化は行わず、クライアントでのトークン削除を促すメッセージを返します。
+    """
+    return {"message": "ログアウト完了（クライアント側でトークン削除推奨）"}

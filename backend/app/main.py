@@ -1,15 +1,13 @@
-# app/main.py
-
 import os
 from fastapi import FastAPI
 from mangum import Mangum
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv  #  dotenv 로드 추가
+from dotenv import load_dotenv
 
-#  .env 환경변수 불러오기
+# .envファイルの環境変数を読み込む
 load_dotenv()
 
-#  라우터 임포트
+# ルーターのインポート
 from app.routes import (
     auth,
     category,
@@ -18,48 +16,48 @@ from app.routes import (
     user
 )
 
-#  카테고리 맵 임포트
+# カテゴリーマップのインポート
 from app.constants.category_map import CATEGORY_KO_LIST
 
-#  FastAPI 인스턴스 생성
+# FastAPIインスタンスの作成
 app = FastAPI(
     title="Briefly API",
-    redirect_slashes=False  # trailing slash 자동 리다이렉트 방지
+    redirect_slashes=False  # URL末尾のスラッシュによる自動リダイレクトを防ぐ
 )
 
-#  라우터 등록
+# ルーターの登録
 app.include_router(auth.router)
 app.include_router(category.router)
 app.include_router(frequency.router)
 app.include_router(news.router)
 app.include_router(user.router)
 
-#  CORS 미들웨어 설정
+# CORSミドルウェアの設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 운영 환경에서는 구체적인 도메인으로 제한 권장
+    allow_origins=["*"],  # 本番環境では特定のドメインに制限することを推奨
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-#  AWS Lambda용 Mangum 핸들러
+# AWS Lambda対応のMangumハンドラー
 handler = Mangum(app)
 
-#  루트 헬스 체크
+# ルートのヘルスチェックエンドポイント
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Briefly API"}
 
-#  온보딩 페이지 엔드포인트 (프론트엔드 요청 대응)
+# オンボーディングページのエンドポイント（フロントエンドの要求に対応）
 @app.get("/onboarding")
 def get_onboarding_info():
     """
-    온보딩 페이지 정보 제공 (인증 불필요)
-    
-    - 프론트엔드에서 /onboarding 경로 요청 시 응답
+    オンボーディングページ情報を提供（認証不要）
+
+    - フロントエンドが /onboarding パスにアクセスした際のレスポンス
     """
     return {
-        "message": "온보딩 페이지입니다",
-        "available_categories": CATEGORY_KO_LIST
+        "message": "온보딩 페이지입니다",  # オンボーディングページです
+        "available_categories": CATEGORY_KO_LIST  # 利用可能なカテゴリ一覧
     }
